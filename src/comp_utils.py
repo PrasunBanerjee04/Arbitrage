@@ -117,4 +117,24 @@ def test_adf_on_best_pairs(best_pairs, ticker_dict):
 
     return adf_results
 
+def get_Y(ticker_map):
+    standardized_returns = {}
+    window = 60
+
+    for symbol, df in ticker_map.items():
+        df = df.copy()
+        df['log_return'] = np.log(df['mid']).diff()
+        df['st_return'] = (
+            df['log_return'] - df['log_return'].rolling(window=window).mean()
+        ) / df['log_return'].rolling(window=window).std()
+        
+        standardized_returns[symbol] = df['st_return']
+
+    Y_df = pd.concat(standardized_returns, axis=1)
+    Y_df = Y_df.dropna()
+    Y_matrix = Y_df.T.values
+
+    return Y_matrix
+
+
     

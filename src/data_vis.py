@@ -84,3 +84,23 @@ def plot_series(S, color='blue', title=None):
     plt.grid(True)
     plt.tight_layout()
     plt.show()
+
+def plot_histogram(series, bins=50, title='Histogram', xlabel='Value', ylabel='Frequency'):
+    """
+    Plots a histogram from a pandas Series.
+    
+    Parameters:
+        series (pd.Series): The data to plot.
+        bins (int): Number of histogram bins.
+        title (str): Plot title.
+        xlabel (str): X-axis label.
+        ylabel (str): Y-axis label.
+    """
+    plt.figure(figsize=(10, 5))
+    plt.hist(series.dropna(), bins=bins, edgecolor='black', alpha=0.7)
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.tight_layout()
+    plt.show()
