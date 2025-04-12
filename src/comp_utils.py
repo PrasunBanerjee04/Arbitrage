@@ -136,5 +136,23 @@ def get_Y(ticker_map):
 
     return Y_matrix
 
+def fit_ou_params(X_series):
+    X_t = X_series[:-1]
+    X_next = X_series[1:]
+
+    # OLS regression: X_{t+1} = a + b * X_t
+    A = np.vstack([X_t, np.ones_like(X_t)]).T
+    b, a = np.linalg.lstsq(A, X_next, rcond=None)[0]
+
+    residuals = X_next - (a + b * X_t)
+    sigma_eps = np.std(residuals)
+
+    kappa = -np.log(b) if b > 0 else 1e-6
+    m = a / (1 - b) if abs(1 - b) > 1e-6 else 0
+    sigma = sigma_eps * np.sqrt(2 * kappa / (1 - b**2)) if b < 1 else 1e-6
+    sigma_eq = sigma / np.sqrt(2 * kappa) if kappa > 0 else 1e-6
+
+    return a, b, kappa, m, sigma, sigma_eq
+
 
     
