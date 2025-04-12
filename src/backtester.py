@@ -3,6 +3,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 from comp_utils import get_residuals
 
+def generate_signals(s_scores, s_entry=1.25, s_exit=0.5):
+    N, M = s_scores.shape
+    positions = np.zeros_like(s_scores)
+
+    for i in range(N):
+        pos = 0
+        for t in range(M):
+            s = s_scores[i, t]
+
+            if pos == 0:
+                if s < -s_entry:
+                    pos = 1  # enter long
+                elif s > s_entry:
+                    pos = -1  # enter short
+            elif pos == 1 and s > -s_exit:
+                pos = 0  # exit long
+            elif pos == -1 and s < s_exit:
+                pos = 0  # exit short
+
+            positions[i, t] = pos
+
+    return positions
+
+
 class Backtester: 
 
     def __init__(self, df1, df2, threshold=1.0, capital=100000, verbose=True, window=60, min_hold=5):

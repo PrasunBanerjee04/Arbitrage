@@ -136,6 +136,34 @@ def get_Y(ticker_map):
 
     return Y_matrix
 
+def compute_Q_matrix_at_t(Y, t, k, window=1440):
+    """
+    Compute Q_matrix (eigenportfolio weights) at time t using a rolling window.
+    
+    Parameters:
+        Y: np.ndarray, shape (N, M) — full standardized return matrix
+        t: int — current time index (must be >= window)
+        k: int — number of eigenvectors to keep
+        window: int — lookback window size in time
+
+    Returns:
+        Q_matrix: np.ndarray, shape (N, k) — eigenportfolio weights at time t
+    """
+    Y_window = Y[:, t-window:t]  # shape (N, window)
+    volatilities = np.std(Y_window, axis=1)
+    M = Y_window.shape[1]
+    P = (1 / (M - 1)) * (Y_window @ Y_window.T)
+
+    eigenvalues, eigenvectors = np.linalg.eigh(P)
+    idx = np.argsort(eigenvalues)[::-1]
+    eigenvectors = eigenvectors[:, idx]
+    
+    top_k_eigenvectors = eigenvectors[:, :k]
+    Q_matrix = top_k_eigenvectors / volatilities[:, np.newaxis]
+
+    return Q_matrix
+
+
 def fit_ou_params(X_series):
     X_t = X_series[:-1]
     X_next = X_series[1:]
