@@ -13,7 +13,8 @@ class Simulator:
                  s_exit=0.5,
                  pca_update_interval=10,
                  start_index=None,
-                 end_index=None):
+                 end_index=None,
+                 transaction_cost=0.0005):
         """
         A PCA-based stat-arb simulator with OU modeling for residuals, factor hedging, 
         and various performance optimizations.
@@ -29,6 +30,7 @@ class Simulator:
             pca_update_interval (int): how often (in timesteps) to recompute PCA
             start_index (int): starting index of simulation window
             end_index (int): ending index of simulation window
+            transaction_cost (float): cost per unit of position change (e.g. 0.0005 for 5 bps)
         """
         self.data_dict = data_dict
         self.ret_window = ret_window
@@ -40,6 +42,7 @@ class Simulator:
         self.pca_update_interval = pca_update_interval
         self.start_index = start_index
         self.end_index = end_index
+        self.transaction_cost = transaction_cost
 
         self.asset_names = list(data_dict.keys())
         self.N = len(self.asset_names)
@@ -93,19 +96,20 @@ class Simulator:
         sigma_eq = sigma / np.sqrt(2 * kappa) if kappa > 0 and sigma > 0 else 1e-6
         return kappa, m, sigma, sigma_eq
 
-    def run_simulation(self):
+    def run_momentum_simulation(self):
         st_return_df = self.compute_rolling_standardized_returns(self.log_return_df, self.ret_window)
         Y = st_return_df.T.values
         M = Y.shape[1]
 
         default_start = max(self.ret_window, self.pca_window, self.ou_window)
         start_t = self.start_index if self.start_index is not None else default_start
-        end_t = self.end_index if self.end_index is not None else M - 1
+        end_t = self.end_index if self.end_index is not None else M - 2  # adjust for t+2 trading
 
         equity = 100_000.0
         self.equity_curve = []
         self.pnl_series = []
         positions = np.zeros(self.N)
+        next_positions = np.zeros(self.N)
         cumulative_X = np.zeros((self.N, M))
         cached_Q = None
 
@@ -135,33 +139,30 @@ class Simulator:
 
             new_positions = np.zeros(self.N)
             for i in range(self.N):
-                old_pos = positions[i]
+                old_pos = next_positions[i]
                 if old_pos == 0:
-                    if s_score[i] < -self.s_entry:
+                    if s_score[i] > self.s_entry:
                         new_positions[i] = 1.0
-                    elif s_score[i] > self.s_entry:
+                    elif s_score[i] < -self.s_entry:
                         new_positions[i] = -1.0
-                elif old_pos == 1.0 and s_score[i] > -self.s_exit:
+                elif old_pos == 1.0 and s_score[i] < self.s_exit:
                     new_positions[i] = 0.0
-                elif old_pos == -1.0 and s_score[i] < self.s_exit:
+                elif old_pos == -1.0 and s_score[i] > -self.s_exit:
                     new_positions[i] = 0.0
                 else:
                     new_positions[i] = old_pos
-            positions = new_positions
 
-            final_positions = np.zeros(self.N)
-            for i in range(self.N):
-                p_i = positions[i]
-                if abs(p_i) > 1e-9:
-                    factor_exposure_i = beta_matrix[i, :] * p_i
-                    hedge_i = np.sum(-factor_exposure_i[j] * Q_t[:, j] for j in range(self.k))
-                    final_positions[i] += p_i
-                    final_positions += hedge_i
-
+            # apply previous step's decided positions (lag by 1)
+            final_positions = new_positions.copy()
+            actual_return = Y[:, t+1]  
             pnl = np.sum(final_positions * actual_return)
+            cost = self.transaction_cost * np.sum(np.abs(final_positions - positions))
+            pnl -= cost
             equity += pnl
             self.pnl_series.append(pnl)
             self.equity_curve.append(equity)
+            positions = final_positions.copy()
+            next_positions = new_positions.copy()
 
         self.pnl_series = np.array(self.pnl_series)
         self.equity_curve = np.array(self.equity_curve)
