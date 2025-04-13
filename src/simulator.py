@@ -152,7 +152,7 @@ class Simulator:
                 else:
                     new_positions[i] = old_pos
 
-            # apply previous step's decided positions (lag by 1)
+            
             final_positions = new_positions.copy()
             actual_return = Y[:, t+1]  
             pnl = np.sum(final_positions * actual_return)
